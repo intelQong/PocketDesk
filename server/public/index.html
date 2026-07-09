@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PocketDesk</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PocketDesk">
+<meta name="theme-color" content="#0b0d16">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/icon-180.png">
+<link rel="icon" type="image/png" href="/icons/icon-180.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<!-- ═══ Login ═══ -->
+<section id="login" class="screen">
+  <div class="login-card">
+    <div class="logo">
+      <div class="logo-mark">⌘</div>
+      <h1>PocketDesk</h1>
+      <p class="tagline">Your VM, fitted to this screen — <span id="fit-info">…</span></p>
+    </div>
+
+    <form id="login-form" autocomplete="off">
+      <label for="pin">Access PIN</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" required>
+
+      <div id="cred-fields" hidden>
+        <label for="rdp-user">VM username</label>
+        <input id="rdp-user" type="text" autocapitalize="none" autocorrect="off" placeholder="ubuntu">
+        <label for="rdp-pass">VM password</label>
+        <input id="rdp-pass" type="password" placeholder="••••••••">
+      </div>
+
+      <label for="quality">Quality</label>
+      <div class="segmented" id="quality" role="radiogroup">
+        <button type="button" data-value="sharp">Sharp</button>
+        <button type="button" data-value="balanced" class="active">Balanced</button>
+        <button type="button" data-value="data">Data&nbsp;saver</button>
+      </div>
+
+      <label for="rescale">Text size</label>
+      <div class="segmented" id="rescale" role="radiogroup">
+        <button type="button" data-value="native">Crisp</button>
+        <button type="button" data-value="mid" class="active">Comfy</button>
+        <button type="button" data-value="big">Big</button>
+      </div>
+
+      <button type="submit" id="connect-btn" class="primary">Connect</button>
+      <p id="login-error" class="error" hidden></p>
+    </form>
+
+    <p class="hint" id="pwa-hint">Tip: in Safari tap <strong>Share&nbsp;→&nbsp;Add&nbsp;to&nbsp;Home&nbsp;Screen</strong> for a full-screen, app-like experience.</p>
+  </div>
+</section>
+
+<!-- ═══ Viewer ═══ -->
+<section id="viewer" class="screen" hidden>
+  <div id="display-container">
+    <div id="display-wrap"></div>
+  </div>
+
+  <!-- Hidden input that summons the iOS keyboard -->
+  <textarea id="kbd-capture" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-hidden="true"></textarea>
+
+  <!-- Status / errors -->
+  <div id="status-overlay" hidden>
+    <div class="status-box">
+      <div class="spinner" id="status-spinner"></div>
+      <p id="status-text">Connecting…</p>
+      <button id="status-action" class="primary" hidden>Reconnect</button>
+      <button id="status-exit" class="ghost">Back to login</button>
+    </div>
+  </div>
+
+  <!-- Collapsed toolbar handle -->
+  <button id="toolbar-handle" title="Show controls">⌘</button>
+
+  <!-- Toolbar -->
+  <div id="toolbar" hidden>
+    <button id="tb-keyboard" title="Keyboard">⌨️</button>
+    <button id="tb-mode" title="Touch mode">🖱️</button>
+    <button id="tb-keys" title="Special keys">✳️</button>
+    <button id="tb-zoom-out" title="Zoom out">−</button>
+    <button id="tb-zoom-in" title="Zoom in">＋</button>
+    <button id="tb-clip" title="Clipboard">📋</button>
+    <button id="tb-disconnect" title="Disconnect">⏻</button>
+    <button id="tb-collapse" title="Hide">✕</button>
+  </div>
+
+  <!-- Special keys strip (shows above the iOS keyboard) -->
+  <div id="keysbar" hidden>
+    <div class="keys-row">
+      <button data-key="esc">esc</button>
+      <button data-key="tab">tab</button>
+      <button data-mod="ctrl">ctrl</button>
+      <button data-mod="alt">alt</button>
+      <button data-mod="shift">shift</button>
+      <button data-mod="super">⌘</button>
+      <button data-key="del">del</button>
+    </div>
+    <div class="keys-row">
+      <button data-key="left">←</button>
+      <button data-key="up">↑</button>
+      <button data-key="down">↓</button>
+      <button data-key="right">→</button>
+      <button data-key="home">home</button>
+      <button data-key="end">end</button>
+      <button data-key="cad">c-a-d</button>
+    </div>
+  </div>
+
+  <!-- Clipboard sheet -->
+  <div id="clip-sheet" hidden>
+    <h3>Clipboard</h3>
+    <textarea id="clip-text" placeholder="Text to send to the VM…"></textarea>
+    <div class="sheet-actions">
+      <button id="clip-send" class="primary">Send to VM</button>
+      <button id="clip-fetch" class="ghost">Get from VM</button>
+      <button id="clip-close" class="ghost">Close</button>
+    </div>
+  </div>
+
+  <div id="toast" hidden></div>
+</section>
+
+<script src="/vendor/guacamole.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

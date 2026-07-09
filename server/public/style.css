@@ -1,0 +1,309 @@
+/* ═══ PocketDesk — iPhone-first styling ═══ */
+
+:root {
+  --bg: #0b0d16;
+  --card: #151928;
+  --card-2: #1d2236;
+  --text: #eef1fb;
+  --muted: #8b93b0;
+  --accent: #6d7cff;
+  --accent-2: #9a6dff;
+  --danger: #ff5d73;
+  --radius: 14px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* The hidden attribute must always win, even over display:flex rules */
+[hidden] { display: none !important; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
+
+.screen {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+}
+
+/* ─── Login ─── */
+
+#login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(154, 109, 255, .18), transparent),
+    radial-gradient(900px 500px at -10% 110%, rgba(109, 124, 255, .15), transparent),
+    var(--bg);
+  padding: calc(16px + var(--safe-top)) 16px calc(24px + var(--safe-bottom));
+}
+
+.login-card { width: 100%; max-width: 380px; }
+
+.logo { text-align: center; margin-bottom: 22px; }
+.logo-mark {
+  width: 64px; height: 64px;
+  margin: 0 auto 10px;
+  display: grid; place-items: center;
+  font-size: 30px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 30px rgba(109, 124, 255, .35);
+}
+.logo h1 { font-size: 26px; letter-spacing: .3px; }
+.tagline { color: var(--muted); font-size: 13px; margin-top: 4px; }
+#fit-info { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+form label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  margin: 14px 2px 6px;
+}
+
+input {
+  width: 100%;
+  padding: 13px 14px;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid #262c45;
+  border-radius: var(--radius);
+  outline: none;
+}
+input:focus { border-color: var(--accent); }
+
+.segmented {
+  display: flex;
+  background: var(--card);
+  border: 1px solid #262c45;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.segmented button {
+  flex: 1;
+  padding: 11px 4px;
+  font-size: 13px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+}
+.segmented button.active {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+.primary {
+  width: 100%;
+  margin-top: 20px;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border: none;
+  border-radius: var(--radius);
+  box-shadow: 0 6px 24px rgba(109, 124, 255, .35);
+}
+.primary:active { transform: scale(.98); }
+
+.ghost {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  font-size: 15px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid #2a3050;
+  border-radius: var(--radius);
+}
+
+.error { color: var(--danger); font-size: 14px; margin-top: 12px; text-align: center; }
+.hint { color: var(--muted); font-size: 12px; text-align: center; margin-top: 22px; line-height: 1.5; }
+
+/* ─── Viewer ─── */
+
+#viewer { background: #000; }
+
+#display-container {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#display-wrap { position: absolute; transform-origin: 0 0; }
+#display-wrap canvas { image-rendering: -webkit-optimize-contrast; }
+
+/* Hidden keyboard capture — must stay focusable & on-screen for iOS */
+#kbd-capture {
+  position: fixed;
+  bottom: 0; left: 0;
+  width: 2px; height: 2px;
+  opacity: 0.01;
+  border: none;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  resize: none;
+  z-index: 1;
+}
+
+/* ─── Status overlay ─── */
+
+#status-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 14, .82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 40;
+}
+.status-box { text-align: center; width: 260px; }
+.status-box p { color: var(--text); font-size: 15px; margin-top: 14px; line-height: 1.5; }
+
+.spinner {
+  width: 34px; height: 34px;
+  margin: 0 auto;
+  border: 3px solid #2a3050;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Toolbar ─── */
+
+#toolbar-handle {
+  position: fixed;
+  top: calc(8px + var(--safe-top));
+  right: 10px;
+  width: 40px; height: 40px;
+  font-size: 18px;
+  color: #fff;
+  background: rgba(21, 25, 40, .8);
+  border: 1px solid #2a3050;
+  border-radius: 50%;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 30;
+  opacity: .55;
+}
+
+#toolbar {
+  position: fixed;
+  top: calc(8px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 2px;
+  padding: 5px;
+  background: rgba(21, 25, 40, .92);
+  border: 1px solid #2a3050;
+  border-radius: 22px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 31;
+}
+#toolbar button {
+  width: 40px; height: 38px;
+  font-size: 17px;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-radius: 18px;
+}
+#toolbar button.on { background: rgba(109, 124, 255, .35); }
+#toolbar button:active { background: rgba(109, 124, 255, .5); }
+
+/* ─── Special keys bar ─── */
+
+#keysbar {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 0; /* moved above the iOS keyboard via visualViewport in JS */
+  padding: 6px 8px calc(6px + var(--safe-bottom));
+  background: rgba(15, 18, 30, .96);
+  border-top: 1px solid #262c45;
+  z-index: 32;
+}
+.keys-row { display: flex; gap: 6px; margin-top: 6px; }
+.keys-row:first-child { margin-top: 0; }
+.keys-row button {
+  flex: 1;
+  padding: 9px 2px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--card-2);
+  border: 1px solid #2a3050;
+  border-radius: 9px;
+}
+.keys-row button.latched {
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+}
+
+/* ─── Clipboard sheet ─── */
+
+#clip-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 18px 16px calc(18px + var(--safe-bottom));
+  background: var(--card);
+  border-radius: 18px 18px 0 0;
+  border-top: 1px solid #2a3050;
+  z-index: 45;
+}
+#clip-sheet h3 { font-size: 15px; margin-bottom: 10px; }
+#clip-text {
+  width: 100%;
+  height: 90px;
+  padding: 10px;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid #262c45;
+  border-radius: 10px;
+  resize: none;
+}
+.sheet-actions { display: flex; gap: 8px; }
+.sheet-actions button { margin-top: 12px; }
+
+/* ─── Toast ─── */
+
+#toast {
+  position: fixed;
+  bottom: calc(30px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 84vw;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(21, 25, 40, .95);
+  border: 1px solid #2a3050;
+  border-radius: 12px;
+  z-index: 60;
+  text-align: center;
+}

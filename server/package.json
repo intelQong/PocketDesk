@@ -1,0 +1,19 @@
+{
+  "name": "pocketdesk",
+  "version": "1.0.0",
+  "description": "iPhone-first web remote desktop gateway (guacd + guacamole-lite)",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build:vendor": "esbuild vendor/guac-entry.js --bundle --minify --global-name=Guacamole --outfile=public/vendor/guacamole.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "guacamole-lite": "^0.7.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.0",
+    "guacamole-common-js": "^1.5.0"
+  }
+}

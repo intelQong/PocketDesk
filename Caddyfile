@@ -1,0 +1,9 @@
+{$SITE_ADDRESS}
+
+# "internal" = self-signed cert (works with a bare IP; Safari will ask you
+# to trust it once). Set CADDY_TLS to your email address + SITE_ADDRESS to a
+# real domain to get automatic Let's Encrypt certificates instead.
+tls {$CADDY_TLS}
+
+encode zstd gzip
+reverse_proxy web:8080

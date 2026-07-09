@@ -1,0 +1,46 @@
+services:
+
+  # Apache Guacamole's native proxy daemon. It is the piece that actually
+  # speaks RDP (via FreeRDP) to the xrdp server running on this VM.
+  guacd:
+    image: guacamole/guacd:1.5.5
+    restart: unless-stopped
+    # Lets guacd reach the host VM's xrdp (port 3389) as host.docker.internal
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # PocketDesk web app: serves the touch-optimized client and bridges
+  # the browser WebSocket to guacd.
+  web:
+    build: ./server
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      GUACD_HOST: guacd
+      GUACD_PORT: "4822"
+    depends_on:
+      - guacd
+
+  # HTTPS front door. iOS needs a secure context for clipboard access and
+  # home-screen app niceties. Uses a self-signed cert by default
+  # (CADDY_TLS=internal); point SITE_ADDRESS at a real domain and set
+  # CADDY_TLS to your email for automatic Let's Encrypt.
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:443}
+      CADDY_TLS: ${CADDY_TLS:-internal}
+    depends_on:
+      - web
+
+volumes:
+  caddy_data:
+  caddy_config:
