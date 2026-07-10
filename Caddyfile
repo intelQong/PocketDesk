@@ -1,9 +1,19 @@
-{$SITE_ADDRESS}
+{
+	# Browsers connecting by bare IP send no SNI; this tells Caddy which
+	# certificate to present in that case. setup.sh sets it to the VM's
+	# public IP.
+	default_sni {$DEFAULT_SNI:localhost}
+}
 
-# "internal" = self-signed cert (works with a bare IP; Safari will ask you
-# to trust it once). Set CADDY_TLS to your email address + SITE_ADDRESS to a
-# real domain to get automatic Let's Encrypt certificates instead.
-tls {$CADDY_TLS}
+# SITE_ADDRESS must be the VM's public IP (setup.sh fills this in) or a
+# domain — NOT a bare ":443", or Caddy has nothing to issue a cert for and
+# TLS handshakes fail with ERR_SSL_PROTOCOL_ERROR.
+{$SITE_ADDRESS} {
+	# "internal" = self-signed cert (works with a bare IP; Safari will ask
+	# you to trust it once). With a real domain in SITE_ADDRESS, set
+	# CADDY_TLS to your email address for automatic Let's Encrypt.
+	tls {$CADDY_TLS}
 
-encode zstd gzip
-reverse_proxy web:8080
+	encode zstd gzip
+	reverse_proxy web:8080
+}

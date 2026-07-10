@@ -119,6 +119,17 @@ Apply changes with `docker compose up -d --build`.
 
 ## Troubleshooting
 
+- **`ERR_SSL_PROTOCOL_ERROR` / "can't provide a secure connection"** →
+  `SITE_ADDRESS` in `.env` must be your VM's **public IP** (or a domain),
+  never a bare `:443` — with no name to issue a certificate for, Caddy
+  aborts every TLS handshake. Fix:
+  ```bash
+  cd ~/pocketdesk && git pull
+  sudo bash setup.sh        # auto-repairs SITE_ADDRESS/DEFAULT_SNI in .env
+  ```
+  or by hand: set `SITE_ADDRESS=<your-public-ip>` and
+  `DEFAULT_SNI=<your-public-ip>` in `.env`, then
+  `sudo docker compose up -d --force-recreate caddy`.
 - **"Login failed" immediately** → wrong VM username/password, or the same
   user is logged in at the VM console (xrdp can't share a session — log out
   locally).

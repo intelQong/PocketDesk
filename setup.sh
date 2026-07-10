@@ -53,6 +53,11 @@ docker compose version >/dev/null 2>&1 || { warn "docker compose plugin missing 
   { [ "$PKG" = apt ] && apt-get install -y docker-compose-plugin; } || { [ "$PKG" = dnf ] && dnf -y install docker-compose-plugin; } || true; }
 ok "Docker ready"
 
+# ── Public IP (needed so Caddy issues its certificate for the right name) ─
+PUBLIC_IP=$(curl -fsS -m 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)
+[ -z "$PUBLIC_IP" ] && PUBLIC_IP=$(hostname -I | awk '{print $1}')
+ok "Public IP: $PUBLIC_IP"
+
 # ── .env generation ──────────────────────────────────────────────────────
 if [ ! -f .env ]; then
   info "Creating .env…"
@@ -69,11 +74,24 @@ if [ ! -f .env ]; then
   sed -e "s|^SECRET_KEY=.*|SECRET_KEY=$SECRET_KEY|" \
       -e "s|^WEB_PIN=.*|WEB_PIN=$WEB_PIN|" \
       -e "s|^RDP_USERNAME=.*|RDP_USERNAME=$RDP_USERNAME|" \
+      -e "s|^SITE_ADDRESS=.*|SITE_ADDRESS=$PUBLIC_IP|" \
+      -e "s|^DEFAULT_SNI=.*|DEFAULT_SNI=$PUBLIC_IP|" \
       .env.example > .env
   chmod 600 .env
   ok ".env written (VM password is NOT stored — you type it on the phone)"
 else
   ok ".env already exists — keeping it"
+  # Repair configs from before SITE_ADDRESS/DEFAULT_SNI were auto-filled:
+  # a bare ":443" (or missing value) breaks TLS with ERR_SSL_PROTOCOL_ERROR.
+  if grep -Eq '^SITE_ADDRESS=(:443)?$|^SITE_ADDRESS=YOUR_PUBLIC_IP$' .env; then
+    sed -i "s|^SITE_ADDRESS=.*|SITE_ADDRESS=$PUBLIC_IP|" .env
+    warn "SITE_ADDRESS was ':443' — updated to $PUBLIC_IP so TLS works"
+  fi
+  if ! grep -q '^DEFAULT_SNI=' .env; then
+    echo "DEFAULT_SNI=$PUBLIC_IP" >> .env
+  elif grep -Eq '^DEFAULT_SNI=$|^DEFAULT_SNI=YOUR_PUBLIC_IP$' .env; then
+    sed -i "s|^DEFAULT_SNI=.*|DEFAULT_SNI=$PUBLIC_IP|" .env
+  fi
 fi
 
 # ── Local firewall (Oracle images ship restrictive rules) ───────────────
@@ -97,7 +115,6 @@ fi
 info "Building and starting PocketDesk (first build downloads images)…"
 docker compose up -d --build
 
-PUBLIC_IP=$(curl -fsS -m 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '\n' || hostname -I | awk '{print $1}')
 WEB_PIN_SHOW=$(grep '^WEB_PIN=' .env | cut -d= -f2)
 
 echo

@@ -36,7 +36,8 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-:443}
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+      DEFAULT_SNI: ${DEFAULT_SNI:-localhost}
       CADDY_TLS: ${CADDY_TLS:-internal}
     depends_on:
       - web
