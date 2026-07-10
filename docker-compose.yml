@@ -3,7 +3,9 @@ services:
   # Apache Guacamole's native proxy daemon. It is the piece that actually
   # speaks RDP (via FreeRDP) to the xrdp server running on this VM.
   guacd:
-    image: guacamole/guacd:1.5.5
+    # 1.6.0 is the first release with native arm64 images — required for
+    # Oracle's free-tier Ampere A1 (aarch64) VMs. 1.5.x is amd64-only.
+    image: guacamole/guacd:1.6.0
     restart: unless-stopped
     # Lets guacd reach the host VM's xrdp (port 3389) as host.docker.internal
     extra_hosts:
