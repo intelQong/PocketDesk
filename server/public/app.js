@@ -460,6 +460,10 @@ kbdEl.addEventListener('beforeinput', (e) => {
 });
 kbdEl.addEventListener('input', () => { kbdEl.value = ''; });
 
+// If iOS dismisses the keyboard on its own (its hide button), keep our
+// toggle state in sync so the next ⌨️ tap re-opens it instead of no-op'ing.
+kbdEl.addEventListener('blur', () => { keyboardOpen = false; });
+
 // Hardware (Bluetooth) keyboards send real key events — handle everything
 // non-printable here and let printable characters flow through beforeinput.
 const hwKeyboard = new Guacamole.Keyboard(kbdEl);
@@ -482,15 +486,23 @@ hwKeyboard.onkeyup = (keysym) => {
 
 /* Keyboard show/hide + keeping the keys bar glued above the iOS keyboard */
 
+let keyboardOpen = false;
+
 function showKeyboard() {
   keysbar.hidden = false;
-  kbdEl.focus({ preventScroll: true });
+  // iOS only raises the software keyboard when focus() runs synchronously
+  // inside the user gesture, with no options object and on a real, visible,
+  // editable element (see #kbd-capture styling). Don't pass preventScroll.
+  kbdEl.value = '';
+  kbdEl.focus();
+  keyboardOpen = true;
   positionKeysbar();
 }
 
 function hideKeyboard() {
   keysbar.hidden = true;
   kbdEl.blur();
+  keyboardOpen = false;
 }
 
 function positionKeysbar() {
@@ -565,7 +577,7 @@ $('tb-collapse').addEventListener('click', () => {
   toolbarHandle.hidden = false;
 });
 $('tb-keyboard').addEventListener('click', () => {
-  if (document.activeElement === kbdEl) hideKeyboard(); else showKeyboard();
+  if (keyboardOpen) hideKeyboard(); else showKeyboard();
 });
 $('tb-mode').addEventListener('click', () => {
   touchMode = touchMode === 'touch' ? 'touchpad' : 'touch';

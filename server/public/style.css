@@ -152,18 +152,28 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 #display-wrap { position: absolute; transform-origin: 0 0; }
 #display-wrap canvas { image-rendering: -webkit-optimize-contrast; }
 
-/* Hidden keyboard capture — must stay focusable & on-screen for iOS */
+/* Hidden keyboard capture. It must stay on-screen, editable and large
+   enough that iOS agrees to raise the software keyboard for it — a tiny
+   or fully-transparent input is silently ignored. We hide it visually
+   (transparent text/caret) and make it non-blocking with pointer-events
+   so it never steals touches from the remote display; focus is always
+   driven programmatically from the toolbar button. */
 #kbd-capture {
   position: fixed;
-  bottom: 0; left: 0;
-  width: 2px; height: 2px;
-  opacity: 0.01;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 40px;
+  padding: 0;
   border: none;
   background: transparent;
   color: transparent;
   caret-color: transparent;
+  font-size: 16px; /* prevents iOS zoom-on-focus */
+  opacity: 0;
   resize: none;
-  z-index: 1;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* ─── Status overlay ─── */
