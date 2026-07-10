@@ -473,12 +473,19 @@ function keysymPrintable(keysym) {
   return (keysym >= 0x20 && keysym <= 0xFF) || (keysym & 0xFFFF0000) === 0x01000000;
 }
 
+// NOTE on return values: Guacamole.Keyboard's onkeydown returns true to
+// let the event THROUGH to the browser, false to CONSUME it.
 hwKeyboard.onkeydown = (keysym) => {
-  if (keysymPrintable(keysym) && latchedMods.size === 0) return false;
+  // Plain printable keys: allow the browser default so the character lands
+  // in the textarea and the beforeinput handler above forwards it (this
+  // also keeps iOS autocorrect/dictation working).
+  if (keysymPrintable(keysym) && latchedMods.size === 0) return true;
+  // Special keys and modifier combos: send directly and consume the event
+  // so the browser doesn't also act on it.
   sendKey(1, keysym);
   hwHandled.add(keysym);
   if (keysymPrintable(keysym)) releaseOneShotMods();
-  return true;
+  return false;
 };
 hwKeyboard.onkeyup = (keysym) => {
   if (hwHandled.delete(keysym)) sendKey(0, keysym);
