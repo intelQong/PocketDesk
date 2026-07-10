@@ -94,8 +94,14 @@ which is a real security upgrade.
 
 | Gesture / control | Action |
 |---|---|
-| **Direct mode 👆** (default) | Tap = left click *where you tap* · long-press = right click · drag = drag |
-| **Touchpad mode 🖱️** | Whole screen is a trackpad · tap = click · two-finger drag = scroll wheel |
+| **Tap** | Left click (at your finger in Direct 👆 mode, at the cursor in Touchpad 🖱️ mode) |
+| **Swipe one finger** | Scroll — content follows your finger like native iOS (Touchpad mode: moves the cursor) |
+| **Long-press** | Right click |
+| **Double-tap** | Double click |
+| **Double-tap & hold** | Drag (keep holding and move) |
+| **Pinch two fingers** | Zoom in/out |
+| **Two-finger drag** | Scroll (trackpad style) |
+| **Three-finger drag** | Pan around while zoomed in |
 | ⌨️ | Summon the iOS keyboard (with the special-keys strip above it) |
 | `ctrl` `alt` `shift` `⌘` keys | Sticky: tap `ctrl`, then tap `c` → sends Ctrl+C |
 | ＋ / − | Zoom (then pan with **3 fingers**); zoom out to 100% snaps back to perfect fit |

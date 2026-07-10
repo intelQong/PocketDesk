@@ -204,7 +204,9 @@ function onConnected() {
   applyTransform();
   applyTouchMode();
   requestWakeLock();
-  toast(touchMode === 'touch' ? 'Direct touch — tap = click, hold = right-click' : 'Touchpad mode');
+  toast(touchMode === 'touch'
+    ? 'Tap = click · swipe = scroll · hold = right-click · double-tap-hold = drag'
+    : 'Touchpad: swipe moves cursor · tap = click · 2 fingers = scroll');
 }
 
 function onDisconnected() {
@@ -279,6 +281,13 @@ function applyTransform() {
   const scale = fitScale() * userZoom;
   d.scale(scale);
 
+  // First time we know the real desktop size, park the pointer mid-screen.
+  if (!cur.init && d.getWidth()) {
+    cur.x = d.getWidth() / 2;
+    cur.y = d.getHeight() / 2;
+    cur.init = true;
+  }
+
   const w = d.getWidth() * scale;
   const h = d.getHeight() * scale;
   displayWrap.style.width = w + 'px';
@@ -313,58 +322,266 @@ window.addEventListener('resize', () => {
 });
 
 /* ── Touch input ────────────────────────────────────────────────────── */
+/*
+ * One unified gesture engine instead of stacking Guacamole's Touchscreen +
+ * Touchpad emulators (which fight over the same events). iPhone-native
+ * semantics:
+ *
+ *   tap                  → left click        (at finger in direct mode,
+ *                                             at cursor in touchpad mode)
+ *   swipe (1 finger)     → scroll, content follows the finger
+ *                          (in touchpad mode: moves the cursor instead)
+ *   long-press           → right click
+ *   double-tap (+hold)   → double click / hold & move = drag
+ *   pinch (2 fingers)    → zoom in/out
+ *   2-finger drag        → scroll (touchpad-style)
+ *   3-finger drag        → pan the view while zoomed
+ */
 
-let touchscreen = null;
-let touchpad = null;
+const GESTURE = {
+  tapSlop: 12,        // css px a tap may wander before it becomes a swipe
+  doubleTapMs: 300,
+  doubleTapSlop: 40,
+  longPressMs: 500,
+  wheelStepPx: 30,    // css px of swipe per scroll-wheel tick
+  pinchThreshold: 40, // css px of spread change before 2 fingers = pinch
+  padSpeed: 1.4,      // touchpad cursor acceleration
+};
 
-function sendScaledMouseState(state) {
-  if (!client || !connected) return;
-  const scale = client.getDisplay().getScale() || 1;
-  client.sendMouseState(new Guacamole.Mouse.State(
-    (state.x - 0) / scale, (state.y - 0) / scale,
-    state.left, state.middle, state.right, state.up, state.down
-  ));
+const buttons = { left: false, middle: false, right: false };
+const cur = { x: 0, y: 0, init: false };  // pointer position, remote px
+let gesture = null;
+let longPressTimer = null;
+let lastTap = { time: 0, x: 0, y: 0 };
+
+function remoteDims() {
+  const d = client && client.getDisplay();
+  if (!d || !d.getWidth()) return null;
+  return { w: d.getWidth(), h: d.getHeight() };
 }
 
+// Map viewport (css) coordinates to remote-desktop pixels.
+function toRemote(cssX, cssY) {
+  const r = remoteDims();
+  if (!r) return { x: 0, y: 0 };
+  const rect = displayWrap.getBoundingClientRect();
+  const sx = rect.width / r.w, sy = rect.height / r.h;
+  return {
+    x: Math.min(r.w - 1, Math.max(0, (cssX - rect.left) / (sx || 1))),
+    y: Math.min(r.h - 1, Math.max(0, (cssY - rect.top) / (sy || 1))),
+  };
+}
+
+function sendPointer() {
+  if (!client || !connected) return;
+  client.sendMouseState(new Guacamole.Mouse.State(
+    cur.x, cur.y, buttons.left, buttons.middle, buttons.right, false, false));
+}
+
+function clickAt(which) {
+  buttons[which] = true; sendPointer();
+  buttons[which] = false; sendPointer();
+}
+
+function sendWheel(down) {
+  if (!client || !connected) return;
+  client.sendMouseState(new Guacamole.Mouse.State(
+    cur.x, cur.y, buttons.left, buttons.middle, buttons.right, !down, down));
+  sendPointer();
+}
+
+function releaseButtons() {
+  if (buttons.left || buttons.middle || buttons.right) {
+    buttons.left = buttons.middle = buttons.right = false;
+    sendPointer();
+  }
+}
+
+function pointAt(cssX, cssY) {
+  // Direct mode: the pointer is wherever the finger is.
+  // Touchpad mode: the pointer only moves via moveCursorBy().
+  if (touchMode === 'touch') {
+    const p = toRemote(cssX, cssY);
+    cur.x = p.x; cur.y = p.y;
+  }
+}
+
+function moveCursorBy(dx, dy) {
+  const r = remoteDims();
+  if (!r) return;
+  const speed = (r.w / window.innerWidth) * GESTURE.padSpeed;
+  cur.x = Math.min(r.w - 1, Math.max(0, cur.x + dx * speed));
+  cur.y = Math.min(r.h - 1, Math.max(0, cur.y + dy * speed));
+}
+
+// Turn accumulated swipe distance into wheel ticks. Natural scrolling:
+// finger up = wheel down (content follows the finger, like iOS).
+function flushScroll(g) {
+  while (g.scrollAccum <= -GESTURE.wheelStepPx) { sendWheel(true); g.scrollAccum += GESTURE.wheelStepPx; }
+  while (g.scrollAccum >= GESTURE.wheelStepPx) { sendWheel(false); g.scrollAccum -= GESTURE.wheelStepPx; }
+}
+
+function pinchZoom(factor, centerX, centerY) {
+  const nz = Math.min(8, Math.max(1, userZoom * factor));
+  if (nz === userZoom) return;
+  const f = nz / userZoom;
+  panX = centerX - (centerX - panX) * f;
+  panY = centerY - (centerY - panY) * f;
+  userZoom = nz;
+  applyTransform();
+}
+
+const dist2 = (t) => Math.hypot(t[1].clientX - t[0].clientX, t[1].clientY - t[0].clientY);
+const mid2 = (t) => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+
+function onTouchStart(e) {
+  e.preventDefault();
+  clearTimeout(longPressTimer);
+  const t = e.touches;
+
+  if (t.length === 1) {
+    const cssX = t[0].clientX, cssY = t[0].clientY;
+    const now = performance.now();
+    const isDouble = now - lastTap.time < GESTURE.doubleTapMs &&
+      Math.hypot(cssX - lastTap.x, cssY - lastTap.y) < GESTURE.doubleTapSlop;
+    gesture = { kind: isDouble ? 'drag' : 'pending', startX: cssX, startY: cssY, lastX: cssX, lastY: cssY, scrollAccum: 0 };
+    if (isDouble) {
+      // Double-tap: press immediately. A quick release = double click,
+      // holding and moving = drag.
+      pointAt(cssX, cssY);
+      buttons.left = true;
+      sendPointer();
+      lastTap.time = 0;
+    } else {
+      longPressTimer = setTimeout(() => {
+        if (gesture && gesture.kind === 'pending') {
+          pointAt(cssX, cssY);
+          clickAt('right');
+          gesture.kind = 'done';
+        }
+      }, GESTURE.longPressMs);
+    }
+  } else if (t.length === 2) {
+    releaseButtons();
+    gesture = { kind: 'two', mode: null, d0: dist2(t), c0: mid2(t), lastD: dist2(t), lastC: mid2(t), scrollAccum: 0 };
+  } else if (t.length >= 3) {
+    releaseButtons();
+    gesture = { kind: 'pan', offX: t[0].clientX - panX, offY: t[0].clientY - panY };
+  }
+}
+
+function onTouchMove(e) {
+  e.preventDefault();
+  const g = gesture;
+  if (!g) return;
+  const t = e.touches;
+
+  if (g.kind === 'pan' && t.length >= 3) {
+    panX = t[0].clientX - g.offX;
+    panY = t[0].clientY - g.offY;
+    applyTransform();
+    return;
+  }
+
+  if (g.kind === 'two' && t.length >= 2) {
+    const d = dist2(t), c = mid2(t);
+    if (!g.mode) {
+      if (Math.abs(d - g.d0) > GESTURE.pinchThreshold) g.mode = 'pinch';
+      else if (Math.hypot(c.x - g.c0.x, c.y - g.c0.y) > GESTURE.tapSlop) g.mode = 'scroll';
+    }
+    if (g.mode === 'pinch' && g.lastD > 0) {
+      pinchZoom(d / g.lastD, c.x, c.y);
+    } else if (g.mode === 'scroll') {
+      pointAt(g.c0.x, g.c0.y);
+      g.scrollAccum += c.y - g.lastC.y;
+      flushScroll(g);
+    }
+    g.lastD = d; g.lastC = c;
+    return;
+  }
+
+  if (t.length !== 1 || g.kind === 'done') return;
+  const cssX = t[0].clientX, cssY = t[0].clientY;
+  const dx = cssX - g.lastX, dy = cssY - g.lastY;
+  g.lastX = cssX; g.lastY = cssY;
+
+  if (g.kind === 'pending' &&
+      Math.hypot(cssX - g.startX, cssY - g.startY) > GESTURE.tapSlop) {
+    clearTimeout(longPressTimer);
+    if (touchMode === 'touch') {
+      g.kind = 'scroll1';
+      pointAt(g.startX, g.startY);
+    } else {
+      g.kind = 'move';
+    }
+  }
+
+  if (g.kind === 'drag') {
+    if (touchMode === 'touch') pointAt(cssX, cssY);
+    else moveCursorBy(dx, dy);
+    sendPointer();
+  } else if (g.kind === 'move') {
+    moveCursorBy(dx, dy);
+    sendPointer();
+  } else if (g.kind === 'scroll1') {
+    g.scrollAccum += dy;
+    flushScroll(g);
+  }
+}
+
+function onTouchEnd(e) {
+  e.preventDefault();
+  const g = gesture;
+  if (e.touches.length > 0) {
+    // A finger lifted but others remain — retire the gesture quietly.
+    if (g && g.kind !== 'two' && g.kind !== 'pan') g.kind = 'done';
+    return;
+  }
+  clearTimeout(longPressTimer);
+  gesture = null;
+  if (!g) return;
+
+  if (g.kind === 'drag') {
+    releaseButtons();
+  } else if (g.kind === 'pending') {
+    pointAt(g.startX, g.startY);
+    clickAt('left');
+    lastTap = { time: performance.now(), x: g.startX, y: g.startY };
+  }
+}
+
+function onTouchCancel() {
+  clearTimeout(longPressTimer);
+  gesture = null;
+  releaseButtons();
+}
+
+let touchAttached = false;
 function attachInput() {
+  cur.init = false;
+
+  // The container persists across reconnects — attach touch handlers once.
+  if (!touchAttached) {
+    touchAttached = true;
+    displayContainer.addEventListener('touchstart', onTouchStart, { passive: false });
+    displayContainer.addEventListener('touchmove', onTouchMove, { passive: false });
+    displayContainer.addEventListener('touchend', onTouchEnd, { passive: false });
+    displayContainer.addEventListener('touchcancel', onTouchCancel, { passive: false });
+  }
+
+  // Desktop browsers / iPad trackpads get a normal mouse (the display
+  // element is recreated per connection, so this attaches per-connect).
+  // Touch never reaches it: our touchstart handlers call preventDefault,
+  // which suppresses the browser's emulated-mouse compatibility events.
   const el = client.getDisplay().getElement();
-
-  // Direct mode: the screen is a touchscreen. Tap = left click where you
-  // tap, long-press = right click, drag after a press = drag.
-  touchscreen = new Guacamole.Mouse.Touchscreen(el);
-  touchscreen.onmousedown = touchscreen.onmousemove = touchscreen.onmouseup = (s) => {
-    if (touchMode === 'touch') sendScaledMouseState(s);
-  };
-
-  // Touchpad mode: the whole screen is a laptop trackpad with acceleration,
-  // tap-to-click and two-finger scroll. Great for tiny desktop UI.
-  touchpad = new Guacamole.Mouse.Touchpad(el);
-  touchpad.onmousedown = touchpad.onmousemove = touchpad.onmouseup = (s) => {
-    if (touchMode === 'touchpad') sendScaledMouseState(s);
-  };
-
-  // Three-finger pan while zoomed in (capture phase so it wins over the
-  // mouse emulators).
-  let panStart = null;
-  displayContainer.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 3) {
-      panStart = { x: e.touches[0].clientX - panX, y: e.touches[0].clientY - panY };
-      e.preventDefault(); e.stopPropagation();
-    }
-  }, { capture: true, passive: false });
-  displayContainer.addEventListener('touchmove', (e) => {
-    if (panStart && e.touches.length === 3) {
-      panX = e.touches[0].clientX - panStart.x;
-      panY = e.touches[0].clientY - panStart.y;
-      applyTransform();
-      e.preventDefault(); e.stopPropagation();
-    }
-  }, { capture: true, passive: false });
-  displayContainer.addEventListener('touchend', () => { panStart = null; }, true);
-
-  // Desktop browsers / iPad trackpads get a normal mouse too.
   const mouse = new Guacamole.Mouse(el);
-  mouse.onmousedown = mouse.onmousemove = mouse.onmouseup = sendScaledMouseState;
+  mouse.onmousedown = mouse.onmousemove = mouse.onmouseup = (state) => {
+    if (!client || !connected) return;
+    const scale = client.getDisplay().getScale() || 1;
+    cur.x = state.x / scale; cur.y = state.y / scale;
+    client.sendMouseState(new Guacamole.Mouse.State(
+      cur.x, cur.y, state.left, state.middle, state.right, state.up, state.down));
+  };
 }
 
 function applyTouchMode() {
@@ -590,8 +807,8 @@ $('tb-mode').addEventListener('click', () => {
   touchMode = touchMode === 'touch' ? 'touchpad' : 'touch';
   applyTouchMode();
   toast(touchMode === 'touch'
-    ? 'Direct touch: tap = click, hold = right-click'
-    : 'Touchpad: swipe to move, tap to click, 2 fingers to scroll');
+    ? 'Direct: tap = click · swipe = scroll · hold = right-click'
+    : 'Touchpad: swipe moves cursor · tap = click · 2 fingers = scroll');
 });
 $('tb-keys').addEventListener('click', () => { keysbar.hidden = !keysbar.hidden; positionKeysbar(); });
 $('tb-zoom-in').addEventListener('click', () => zoom(1.25));
