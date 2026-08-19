@@ -27,27 +27,27 @@
 
     <form id="login-form" autocomplete="off">
       <label for="pin">Access PIN</label>
-      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="PIN" required>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="one-time-code" placeholder="PIN" required>
 
       <div id="cred-fields" hidden>
         <label for="rdp-user">VM username</label>
-        <input id="rdp-user" type="text" autocapitalize="none" autocorrect="off" placeholder="ubuntu">
+        <input id="rdp-user" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="ubuntu">
         <label for="rdp-pass">VM password</label>
-        <input id="rdp-pass" type="password" placeholder="••••••••">
+        <input id="rdp-pass" type="password" autocomplete="current-password" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="••••••••">
       </div>
 
       <label for="quality">Quality</label>
       <div class="segmented" id="quality" role="radiogroup">
-        <button type="button" data-value="sharp">Sharp</button>
-        <button type="button" data-value="balanced" class="active">Balanced</button>
-        <button type="button" data-value="data">Data&nbsp;saver</button>
+        <button type="button" role="radio" data-value="sharp">Sharp</button>
+        <button type="button" role="radio" data-value="balanced" class="active">Balanced</button>
+        <button type="button" role="radio" data-value="data">Data&nbsp;saver</button>
       </div>
 
       <label for="rescale">Text size</label>
       <div class="segmented" id="rescale" role="radiogroup">
-        <button type="button" data-value="native">Crisp</button>
-        <button type="button" data-value="mid" class="active">Comfy</button>
-        <button type="button" data-value="big">Big</button>
+        <button type="button" role="radio" data-value="native">Crisp</button>
+        <button type="button" role="radio" data-value="mid" class="active">Comfy</button>
+        <button type="button" role="radio" data-value="big">Big</button>
       </div>
 
       <button type="submit" id="connect-btn" class="primary">Connect</button>

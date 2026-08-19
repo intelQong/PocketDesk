@@ -45,6 +45,15 @@ const GUACD = {
   port: parseInt(process.env.GUACD_PORT || '4822', 10),
 };
 
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  console.error('PORT must be a valid TCP port. Refusing to start.');
+  process.exit(1);
+}
+if (!Number.isInteger(GUACD.port) || GUACD.port < 1 || GUACD.port > 65535) {
+  console.error('GUACD_PORT must be a valid TCP port. Refusing to start.');
+  process.exit(1);
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────
 
 function encryptToken(payload) {
@@ -64,9 +73,21 @@ function safeEqual(a, b) {
 }
 
 function clampInt(value, min, max, fallback) {
-  const n = parseInt(value, 10);
-  if (Number.isNaN(n)) return fallback;
+  const n = typeof value === 'number'
+    ? value
+    : (typeof value === 'string' && /^\d+$/.test(value) ? Number(value) : NaN);
+  if (!Number.isSafeInteger(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function optionalString(value, fallback, maxLength = 256) {
+  if (value === undefined || value === '') return fallback;
+  if (typeof value !== 'string' || value.length > maxLength) return null;
+  return value;
 }
 
 // Small in-memory brute-force guard for the PIN: 10 attempts / 15 min / IP.
@@ -97,6 +118,16 @@ const QUALITY = {
 
 const app = express();
 app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.set({
+    'Content-Security-Policy': "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' wss:",
+    'Permissions-Policy': 'camera=(), geolocation=(), microphone=(), payment=(), usb=()',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+  });
+  next();
+});
 app.use(express.json({ limit: '10kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -105,7 +136,6 @@ app.get('/healthz', (req, res) => res.json({ ok: true }));
 // Tells the client which fields it must ask the user for.
 app.get('/api/config', (req, res) => {
   res.json({
-    rdpHost: RDP_DEFAULTS.hostname,
     usernameConfigured: RDP_DEFAULTS.username !== '',
     passwordConfigured: RDP_DEFAULTS.password !== '',
   });
@@ -117,9 +147,18 @@ app.post('/api/connect', (req, res) => {
     return res.status(429).json({ error: 'Too many attempts. Try again in a few minutes.' });
   }
 
-  const body = req.body || {};
-  if (!body.pin || !safeEqual(body.pin, WEB_PIN)) {
+  const body = req.body;
+  if (!isPlainObject(body) || typeof body.pin !== 'string' || body.pin.length === 0 || body.pin.length > 128) {
+    return res.status(400).json({ error: 'Invalid connection request.' });
+  }
+  if (!safeEqual(body.pin, WEB_PIN)) {
     return res.status(401).json({ error: 'Wrong PIN.' });
+  }
+
+  const username = optionalString(body.username, RDP_DEFAULTS.username);
+  const password = optionalString(body.password, RDP_DEFAULTS.password, 1024);
+  if (username === null || password === null) {
+    return res.status(400).json({ error: 'Invalid connection request.' });
   }
   attempts.delete(ip); // successful auth resets the counter
 
@@ -128,13 +167,15 @@ app.post('/api/connect', (req, res) => {
   const width = clampInt(body.width, 320, 4096, 828);
   const height = clampInt(body.height, 320, 4096, 1792);
   const dpi = clampInt(body.dpi, 72, 300, 96);
-  const quality = QUALITY[body.quality] || QUALITY.balanced;
+  const quality = typeof body.quality === 'string' && QUALITY[body.quality]
+    ? QUALITY[body.quality]
+    : QUALITY.balanced;
 
   const settings = {
     hostname: RDP_DEFAULTS.hostname,
     port: RDP_DEFAULTS.port,
-    username: String(body.username || RDP_DEFAULTS.username || ''),
-    password: String(body.password || RDP_DEFAULTS.password || ''),
+    username,
+    password,
     security: RDP_DEFAULTS.security,
     'ignore-cert': 'true',
     width: String(width),
@@ -153,6 +194,13 @@ app.post('/api/connect', (req, res) => {
 
   const token = encryptToken({ connection: { type: 'rdp', settings } });
   res.json({ token });
+});
+
+app.use((err, req, res, next) => {
+  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
+    return res.status(400).json({ error: 'Invalid JSON body.' });
+  }
+  next(err);
 });
 
 // ── WebSocket tunnel ─────────────────────────────────────────────────────

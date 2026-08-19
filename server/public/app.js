@@ -107,7 +107,11 @@ function setupSegmented(id, initial, onChange) {
   const group = $(id);
   const buttons = Array.from(group.querySelectorAll('button'));
   const select = (value) => {
-    buttons.forEach((b) => b.classList.toggle('active', b.dataset.value === value));
+    buttons.forEach((b) => {
+      const active = b.dataset.value === value;
+      b.classList.toggle('active', active);
+      b.setAttribute('aria-checked', String(active));
+    });
     onChange(value);
   };
   buttons.forEach((b) => b.addEventListener('click', () => select(b.dataset.value)));
